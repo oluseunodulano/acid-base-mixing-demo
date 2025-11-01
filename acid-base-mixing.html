@@ -1,0 +1,291 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Acid-Base Mixing — Interactive Demo</title>
+  <style>
+    body{font-family:Inter,system-ui,Segoe UI,Roboto,Arial;margin:18px;background:#f7fafc;color:#0f172a}
+    .card{background:white;border-radius:12px;box-shadow:0 6px 18px rgba(2,6,23,0.08);padding:18px;margin-bottom:16px}
+    label{display:block;margin-top:8px;font-weight:600}
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    input,select{width:100%;padding:8px;border-radius:8px;border:1px solid #e6e9ef}
+    button{background:#0f172a;color:white;padding:10px 14px;border-radius:10px;border:0;cursor:pointer}
+    .result{font-size:1.1rem;font-weight:700}
+    pre.calc{background:#0f172a;color:#e6eefc;border-radius:8px;padding:12px;overflow:auto}
+    .phmeter{height:14px;border-radius:999px;background:linear-gradient(90deg,#ff4d4d,#ffd24d,#7ee07e,#2eb8b8);margin-top:8px}
+    .phmark{position:relative}
+    .marker{position:absolute;top:-6px;width:2px;height:26px;background:black}
+    .tiny{font-size:0.9rem;color:#475569}
+  </style>
+</head>
+<body>
+  <h2>Acid & Base Mixing — Interactive Demo</h2>
+  <div class="card">
+    <div class="grid">
+      <div>
+        <h3>Solution A (left)</h3>
+        <label>Type</label>
+        <select id="typeA">
+          <option value="strong_acid">Strong acid (HCl, HNO3)</option>
+          <option value="strong_base">Strong base (NaOH)</option>
+          <option value="weak_acid">Weak acid (CH₃COOH)</option>
+          <option value="weak_base">Weak base (NH₃)</option>
+        </select>
+        <label>Concentration (M)</label>
+        <input id="concA" type="number" min="0" step="0.01" value="0.10">
+        <label>Volume (mL)</label>
+        <input id="volA" type="number" min="0" step="1" value="25">
+      </div>
+      <div>
+        <h3>Solution B (right)</h3>
+        <label>Type</label>
+        <select id="typeB">
+          <option value="strong_base">Strong base (NaOH)</option>
+          <option value="strong_acid">Strong acid (HCl, HNO3)</option>
+          <option value="weak_acid">Weak acid (CH₃COOH)</option>
+          <option value="weak_base">Weak base (NH₃)</option>
+        </select>
+        <label>Concentration (M)</label>
+        <input id="concB" type="number" min="0" step="0.01" value="0.10">
+        <label>Volume (mL)</label>
+        <input id="volB" type="number" min="0" step="1" value="25">
+      </div>
+    </div>
+    <div style="margin-top:12px">
+      <label>Choose substance (defaults used for Ka/Kb)</label>
+      <div class="grid">
+        <div>
+          <select id="subA">
+            <option value="HCl">HCl (strong acid)</option>
+            <option value="HNO3">HNO3 (strong acid)</option>
+            <option value="CH3COOH">CH₃COOH (weak acid, Ka=1.8e-5)</option>
+            <option value="NH3">NH₃ (weak base, Kb=1.8e-5)</option>
+          </select>
+        </div>
+        <div>
+          <select id="subB">
+            <option value="NaOH">NaOH (strong base)</option>
+            <option value="HCl">HCl (strong acid)</option>
+            <option value="CH3COOH">CH₃COOH (weak acid, Ka=1.8e-5)</option>
+            <option value="NH3">NH₃ (weak base, Kb=1.8e-5)</option>
+          </select>
+        </div>
+      </div>
+    </div>
+    <div style="margin-top:12px">
+      <button id="mixBtn">Mix!</button>
+      <button id="resetBtn" style="background:#e2e8f0;color:#0f172a;margin-left:8px">Reset</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Result</h3>
+    <div id="summary" class="result">No mix yet — click <strong>Mix!</strong></div>
+    <div class="tiny">pH scale (0 acidic → 7 neutral → 14 basic)</div>
+    <div class="phmark" style="margin-top:8px;">
+      <div class="phmeter"></div>
+      <div id="marker" class="marker" style="left:50%"></div>
+    </div>
+    <div style="margin-top:12px">
+      <h4>Calculation steps</h4>
+      <pre class="calc" id="calculation">—</pre>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Notes for students</h3>
+    <ul>
+      <li>Strong acids/bases fully dissociate: 1 mole → 1 mole H⁺ or OH⁻.</li>
+      <li>When acids and bases mix, neutralization occurs: H⁺ + OH⁻ → H₂O.</li>
+      <li>Buffers: when a weak acid and its conjugate base are present, pH can be estimated with Henderson–Hasselbalch: pH = pKa + log([A⁻]/[HA]).</li>
+      <li>The simulation currently supports: strong+strong and strong+weak (with buffer handling). Weak+weak mixing shows an explanatory message.</li>
+    </ul>
+  </div>
+
+  <script>
+    // Constants used
+    const Ka_CH3COOH = 1.8e-5; // acetic acid
+    const Kb_NH3 = 1.8e-5; // ammonia
+    const Kw = 1e-14;
+
+    function toL(mL){return mL/1000}
+
+    function mix(){
+      const typeA = document.getElementById('typeA').value;
+      const typeB = document.getElementById('typeB').value;
+      const concA = parseFloat(document.getElementById('concA').value) || 0;
+      const concB = parseFloat(document.getElementById('concB').value) || 0;
+      const volA = parseFloat(document.getElementById('volA').value) || 0;
+      const volB = parseFloat(document.getElementById('volB').value) || 0;
+      const subA = document.getElementById('subA').value;
+      const subB = document.getElementById('subB').value;
+
+      const VA = toL(volA), VB = toL(volB);
+      const molesA = concA * VA;
+      const molesB = concB * VB;
+      const Vtot = VA + VB;
+
+      const calcLines = [];
+
+      // classify strong vs weak
+      function isStrong(t){return t==='strong_acid' || t==='strong_base';}
+      function isWeak(t){return t==='weak_acid' || t==='weak_base';}
+
+      // Strong + Strong case
+      if(isStrong(typeA) && isStrong(typeB)){
+        // Determine H+ moles and OH- moles
+        const mH = (typeA==='strong_acid') ? molesA : (typeB==='strong_acid' ? molesB : 0);
+        const mOH = (typeA==='strong_base') ? molesA : (typeB==='strong_base' ? molesB : 0);
+        calcLines.push(`Moles H+: ${format(mH)} mol`);
+        calcLines.push(`Moles OH-: ${format(mOH)} mol`);
+        if(Math.abs(mH - mOH) < 1e-12){
+          // neutral
+          const pH = 7.00;
+          displayResult(pH, calcLines.concat([`Equal moles → neutral solution (pH 7). Total volume ${Vtot.toFixed(3)} L`]));
+          return;
+        } else if(mH > mOH){
+          const leftH = mH - mOH;
+          const [Hconc, pH] = [leftH / Vtot, -Math.log10(leftH / Vtot)];
+          calcLines.push(`Leftover H+ after neutralization: ${format(leftH)} mol`);
+          calcLines.push(`[H+] = ${Hconc.toExponential(3)} M → pH = ${pH.toFixed(3)}`);
+          displayResult(pH, calcLines.concat([`Acidic solution due to excess H+. Total volume ${Vtot.toFixed(3)} L`]));
+          return;
+        } else {
+          const leftOH = mOH - mH;
+          const OHconc = leftOH / Vtot;
+          const pOH = -Math.log10(OHconc);
+          const pH = 14 - pOH;
+          calcLines.push(`Leftover OH- after neutralization: ${format(leftOH)} mol`);
+          calcLines.push(`[OH-] = ${OHconc.toExponential(3)} M → pH = ${pH.toFixed(3)}`);
+          displayResult(pH, calcLines.concat([`Basic solution due to excess OH-. Total volume ${Vtot.toFixed(3)} L`]));
+          return;
+        }
+      }
+
+      // Strong + Weak cases (either order)
+      if((isStrong(typeA) && isWeak(typeB)) || (isStrong(typeB) && isWeak(typeA))){
+        // Identify which is strong and which is weak
+        const strongIsA = isStrong(typeA);
+        const strongType = strongIsA ? typeA : typeB;
+        const weakType = strongIsA ? typeB : typeA;
+        const strongMoles = strongIsA ? molesA : molesB;
+        const weakMoles = strongIsA ? molesB : molesA;
+        const weakSub = strongIsA ? subB : subA;
+
+        calcLines.push(`Strong moles: ${format(strongMoles)} mol`);
+        calcLines.push(`Weak moles (initial): ${format(weakMoles)} mol`);
+
+        // Cases: strong acid neutralizes weak base (forms conjugate acid), and strong base neutralizes weak acid (forms conjugate base)
+        if(strongType === 'strong_acid' && weakType === 'weak_base'){
+          // H+ + B → BH+
+          if(strongMoles >= weakMoles){
+            // all weak base protonated; leftover strong acid
+            const leftH = strongMoles - weakMoles;
+            const Hconc = leftH / Vtot;
+            const pH = -Math.log10(Hconc);
+            calcLines.push(`All weak base protonated → conjugate acid formed, but excess strong acid remains (${format(leftH)} mol).`);
+            calcLines.push(`[H+] = ${Hconc.toExponential(3)} M → pH = ${pH.toFixed(3)}`);
+            displayResult(pH, calcLines);
+            return;
+          } else {
+            // excess conjugate acid (BH+) — solution is acidic but may act as buffer if base remains? Actually when strong acid < weak base, leftover weak base remains (basic)
+            const leftB = weakMoles - strongMoles; // unprotonated base left
+            // Now we have a solution of a weak base (B) and its conjugate acid (BH+). That's a buffer — use Henderson for base form: pOH = pKb + log([BH+]/[B]) -> pH = 14 - pOH
+            const BH_moles = strongMoles; // produced
+            const B_moles = leftB;
+            const ratio = (BH_moles / B_moles);
+            const pKb = -Math.log10(Kb_NH3);
+            const pOH = pKb + Math.log10(ratio);
+            const pH = 14 - pOH;
+            calcLines.push(`After partial neutralization: moles B (base) = ${format(B_moles)}, moles BH+ (conjugate acid) = ${format(BH_moles)}.`);
+            calcLines.push(`Using Henderson for base: pOH = pKb + log([BH+]/[B])`);
+            calcLines.push(`pKb = ${pKb.toFixed(3)}, ratio = ${ratio.toFixed(3)}`);
+            calcLines.push(`pH ≈ ${pH.toFixed(3)} (buffer)`);
+            displayResult(pH, calcLines);
+            return;
+          }
+        }
+
+        if(strongType === 'strong_base' && weakType === 'weak_acid'){
+          // OH- + HA -> A- + H2O
+          if(strongMoles >= weakMoles){
+            // all weak acid neutralized; leftover strong base
+            const leftOH = strongMoles - weakMoles;
+            const OHconc = leftOH / Vtot;
+            const pOH = -Math.log10(OHconc);
+            const pH = 14 - pOH;
+            calcLines.push(`All weak acid neutralized → conjugate base formed, but excess strong base remains (${format(leftOH)} mol).`);
+            calcLines.push(`[OH-] = ${OHconc.toExponential(3)} M → pH = ${pH.toFixed(3)}`);
+            displayResult(pH, calcLines);
+            return;
+          } else {
+            // excess conjugate base A- and some HA -> buffer. Use Henderson-Hasselbalch for acid: pH = pKa + log([A-]/[HA])
+            const A_moles = strongMoles; // produced
+            const HA_moles = weakMoles - strongMoles;
+            const ratio = (A_moles / HA_moles);
+            const pKa = -Math.log10(Ka_CH3COOH);
+            const pH = pKa + Math.log10(ratio);
+            calcLines.push(`After partial neutralization: moles HA = ${format(HA_moles)}, moles A- (conjugate base) = ${format(A_moles)}.`);
+            calcLines.push(`Using Henderson–Hasselbalch: pH = pKa + log([A-]/[HA])`);
+            calcLines.push(`pKa = ${pKa.toFixed(3)}, ratio = ${ratio.toFixed(3)}`);
+            calcLines.push(`pH ≈ ${pH.toFixed(3)} (buffer)`);
+            displayResult(pH, calcLines);
+            return;
+          }
+        }
+
+        // Other combos: strong acid + weak acid or strong base + weak base -> just add strong to weak (no neutralization) — treat as strong dictating pH if large excess, else do approximations
+        if(strongType === 'strong_acid' && weakType === 'weak_acid'){
+          // both acidic: strong acid dominates; compute [H+] from strong + contribution from weak (approx negligible if [H+] from strong >> from weak)
+          const H_from_strong = strongMoles / Vtot;
+          // weak acid contribution approximate: compute equilibrium ignoring strong (only if H_from_strong is tiny)
+          calcLines.push(`Mixing a strong acid with a weak acid. Strong acid dominates. [H+] approx from strong acid.`);
+          const pH = -Math.log10(H_from_strong);
+          calcLines.push(`[H+] ≈ ${H_from_strong.toExponential(3)} M → pH ≈ ${pH.toFixed(3)}`);
+          displayResult(pH, calcLines);
+          return;
+        }
+
+        if(strongType === 'strong_base' && weakType === 'weak_base'){
+          const OH_from_strong = strongMoles / Vtot;
+          const pOH = -Math.log10(OH_from_strong);
+          const pH = 14 - pOH;
+          calcLines.push(`Mixing a strong base with a weak base. Strong base dominates.`);
+          calcLines.push(`[OH-] ≈ ${OH_from_strong.toExponential(3)} M → pH ≈ ${pH.toFixed(3)}`);
+          displayResult(pH, calcLines);
+          return;
+        }
+      }
+
+      // Weak + Weak — not fully supported here. Provide guidance
+      if(isWeak(typeA) && isWeak(typeB)){
+        const message = `Weak+Weak mixing (e.g., two different weak acids/bases) is not fully supported in this simple demo. I can add a numerical solver on request.`;
+        calcLines.push(message);
+        displayResult(7, calcLines.concat([message]));
+        return;
+      }
+
+      // Fallback
+      displayResult(7, ["Result could not be calculated with provided inputs. Please check types and values."]);
+    }
+
+    function displayResult(pH, calcLines){
+      const summary = document.getElementById('summary');
+      const calc = document.getElementById('calculation');
+      summary.innerHTML = `pH ≈ ${pH.toFixed(3)}`;
+      calc.textContent = calcLines.join('\n');
+      const pct = Math.max(0, Math.min(100, (pH/14)*100));
+      document.getElementById('marker').style.left = pct + '%';
+    }
+
+    function format(x){
+      if(Math.abs(x) < 1e-6) return x.toExponential(3);
+      return x.toFixed(6).replace(/\.000000$/,'');
+    }
+
+    document.getElementById('mixBtn').addEventListener('click', mix);
+    document.getElementById('resetBtn').addEventListener('click', ()=>location.reload());
+  </script>
+</body>
+</html>
