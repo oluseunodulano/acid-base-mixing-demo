@@ -18,5 +18,5 @@ Built with **HTML, CSS, and JavaScript**, it provides a simple, interactive way 
 
 ### 1. Clone the Repository
 ```bash
-git clone https://github.com/YOUR_USERNAME/acid-base-mixing-demo.git
+git clone https://github.com/oluseunodulano/acid-base-mixing-demo.git
 cd acid-base-mixing-demo
